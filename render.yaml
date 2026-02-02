@@ -11,8 +11,9 @@ services:
         sync: false # User must provide this in dashboard
 
   # Static Site (Frontend)
-  - type: static
+  - type: web
     name: client
+    env: static
     rootDir: client
     buildCommand: npm install && npm run build
     publishDir: dist
