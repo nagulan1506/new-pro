@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { useParams, useNavigate } from 'react-router-dom';
 
 const ResetPassword = () => {
@@ -16,7 +16,7 @@ const ResetPassword = () => {
     useEffect(() => {
         const verifyToken = async () => {
             try {
-                await axios.get(`http://localhost:5000/api/verify-token/${token}`);
+                await api.get(`/verify-token/${token}`);
                 setValidToken(true);
             } catch (err) {
                 setValidToken(false);
@@ -39,7 +39,7 @@ const ResetPassword = () => {
         }
 
         try {
-            const res = await axios.post('http://localhost:5000/api/reset-password', {
+            const res = await api.post('/reset-password', {
                 token,
                 newPassword
             });

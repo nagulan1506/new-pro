@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { Link } from 'react-router-dom';
 
 const ForgotPassword = () => {
@@ -16,7 +16,7 @@ const ForgotPassword = () => {
 
         try {
             // Using localhost:5000 directly for now, in real app set proxy or env var
-            const res = await axios.post('http://localhost:5000/api/forgot-password', { email });
+            const res = await api.post('/forgot-password', { email });
             setMessage(res.data.message);
         } catch (err) {
             setError(err.response?.data?.message || 'Something went wrong');
