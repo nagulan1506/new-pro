@@ -4,16 +4,68 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 // Nodemailer Transporter
-// NOTE: In a real app, use environment variables. For testing, we might need a mock or real credentials.
-// For now, I'll set up the structure.
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
     },
+});
+
+// Helper to check if email is configured
+const isEmailConfigured = () => {
+    return process.env.EMAIL_USER && process.env.EMAIL_PASS && process.env.EMAIL_USER !== 'your_email@gmail.com';
+};
+
+// Register
+router.post('/register', async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).json({ message: 'User already exists' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({
+            email,
+            password: hashedPassword
+        });
+
+        await newUser.save();
+        res.status(201).json({ message: 'User registered successfully' });
+    } catch (err) {
+        console.error("Register Error:", err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Login
+router.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid credentials' });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Invalid credentials' });
+        }
+
+        // Create JWT Token
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET || 'secret_key_change_me', { expiresIn: '1h' });
+
+        res.json({ token, userId: user._id, message: 'Login successful' });
+    } catch (err) {
+        console.error("Login Error:", err);
+        res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // Forgot Password
@@ -40,15 +92,11 @@ router.post('/forgot-password', async (req, res) => {
             to: email,
             subject: 'Password Reset',
             text: `You requested a password reset. Click the link to reset your password: ${resetLink}`,
-            // html: `<p>Click <a href="${resetLink}">here</a> to reset your password.</p>`
         };
 
-        // For this task, if credentials aren't provided, we might fail to send email.
-        // I will log the link as well for manual verification.
         console.log(`[DEV] Reset Link for ${email}: ${resetLink}`);
 
-        if (process.env.EMAIL_USER === 'your_email@gmail.com') {
-            // Mock success if no credentials provided
+        if (!isEmailConfigured()) {
             return res.json({ message: 'Email sent (simulated). Check server logs for link.' });
         }
 
@@ -56,12 +104,12 @@ router.post('/forgot-password', async (req, res) => {
         res.json({ message: 'Email sent successfully' });
 
     } catch (err) {
-        console.error(err);
+        console.error("Forgot Password Error:", err);
         res.status(500).json({ message: 'Server error' });
     }
 });
 
-// Verify Token (Optional, can be done in Reset Password directly but good for UI 'Loading' state)
+// Verify Token
 router.get('/verify-token/:token', async (req, res) => {
     const { token } = req.params;
     try {
@@ -92,7 +140,8 @@ router.post('/reset-password', async (req, res) => {
             return res.status(400).json({ message: 'Invalid or expired token' });
         }
 
-        user.password = newPassword; // In production, hash this!
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
         user.resetToken = null;
         user.expireToken = null;
         await user.save();
